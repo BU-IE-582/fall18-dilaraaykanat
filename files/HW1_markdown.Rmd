@@ -1,0 +1,561 @@
+---
+title: "HW1 (11.10.2018)"
+author: "Dilara Aykanat - IE582 - Fall 2018"
+output: html_document
+---
+
+All codes are given in the appendix.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(out.width='\\textwidth')
+
+require(data.table)
+require(anytime)
+
+matches_file_path="C:/Users/diaykanat/Desktop/IE 582/HW1/matches.rds"
+odd_details_file_path="C:/Users/diaykanat/Desktop/IE 582/HW1/odd_details.rds"
+
+matches=readRDS(matches_file_path)
+odds=readRDS(odd_details_file_path)
+matches=unique(matches)
+
+#convert anytime to date
+matches[,match_time:=anytime(date)]
+matches[,date:=NULL]
+
+#calculate total goals
+matches[,c("HomeGoals","AwayGoals"):=tstrsplit(score,':')]
+matches[,Year:=year(match_time)]
+matches$HomeGoals=as.numeric(matches$HomeGoals)
+matches[,AwayGoals:=as.numeric(AwayGoals)]
+matches[,TotalGoals:=HomeGoals+AwayGoals]
+
+#mark the over matches 
+matches[,IsOver:=0]
+matches[TotalGoals>2.5,IsOver:=1]
+matches = matches[!is.na(score)]
+```
+
+## Task 1
+###Part a
+
+youwin, 1xbet,expekt, 888sport, bet365 are the selected bookmakers for this part.
+
+
+
+```{r a0,echo=FALSE,fig.width = 13}
+
+#filter over under 2.5
+odds_ov_un=odds[betType=='ou' & totalhandicap=='2.5']
+
+#remove total handicap
+odds_ov_un[,totalhandicap:=NULL]
+
+#order data in ascending date
+odds_ov_un[,date := anytime(date)]
+odds_ov_un=odds_ov_un[order(matchId, oddtype,bookmaker,date)]
+
+#select the initial odds
+odds_ov_un_initial=odds_ov_un[,list(start_odd=odd[1]),by=list(matchId,oddtype,bookmaker)]
+
+#select the final odss
+odds_ov_un_final=odds_ov_un[,list(final_odd=odd[.N]),by=list(matchId,oddtype,bookmaker)]
+
+#filter the bookmakers
+youwin_over_under_1=odds_ov_un_initial[bookmaker=='youwin']
+xBet_over_under_1=odds_ov_un_initial[bookmaker=='1xBet']
+expekt_over_under_1=odds_ov_un_initial[bookmaker=='Expekt']
+sport_over_under_1=odds_ov_un_initial[bookmaker=='888sport']
+bet365_over_under_1=odds_ov_un_initial[bookmaker=='bet365']
+
+youwin_over_under_2=odds_ov_un_final[bookmaker=='youwin']
+xBet_over_under_2=odds_ov_un_final[bookmaker=='1xBet']
+expekt_over_under_2=odds_ov_un_final[bookmaker=='Expekt']
+sport_over_under_2=odds_ov_un_final[bookmaker=='888sport']
+bet365_over_under_2=odds_ov_un_final[bookmaker=='bet365']
+
+#prepare the table where odds are given in the wide format for a specific match by a bookmaker
+youwin_wide_1=dcast(youwin_over_under_1,matchId~oddtype,value.var='start_odd')
+xBet_wide_1=dcast(xBet_over_under_1,matchId~oddtype,value.var='start_odd')
+expekt_wide_1=dcast(expekt_over_under_1,matchId~oddtype,value.var='start_odd')
+sport_wide_1=dcast(sport_over_under_1,matchId~oddtype,value.var='start_odd')
+bet365_wide_1=dcast(bet365_over_under_1,matchId~oddtype,value.var='start_odd')
+
+youwin_wide_2=dcast(youwin_over_under_2,matchId~oddtype,value.var='final_odd')
+xBet_wide_2=dcast(xBet_over_under_2,matchId~oddtype,value.var='final_odd')
+expekt_wide_2=dcast(expekt_over_under_2,matchId~oddtype,value.var='final_odd')
+sport_wide_2=dcast(sport_over_under_2,matchId~oddtype,value.var='final_odd')
+bet365_wide_2=dcast(bet365_over_under_2,matchId~oddtype,value.var='final_odd')
+
+#merge the matches and odds tables for initial odds
+merged_matches_y1=merge(matches,youwin_wide_1,by='matchId')
+merged_matches_x1=merge(matches,xBet_wide_1,by='matchId')
+merged_matches_e1=merge(matches,expekt_wide_1,by='matchId')
+merged_matches_s1=merge(matches,sport_wide_1,by='matchId')
+merged_matches_b1=merge(matches,bet365_wide_1,by='matchId')
+
+#merge the matches and odds tables for final odds
+merged_matches_y2=merge(matches,youwin_wide_2,by='matchId')
+merged_matches_x2=merge(matches,xBet_wide_2,by='matchId')
+merged_matches_e2=merge(matches,expekt_wide_2,by='matchId')
+merged_matches_s2=merge(matches,sport_wide_2,by='matchId')
+merged_matches_b2=merge(matches,bet365_wide_2,by='matchId')
+
+bs <-list(merged_matches_y1,merged_matches_x1,merged_matches_e1,merged_matches_s1,merged_matches_b1,
+          merged_matches_y2,merged_matches_x2,merged_matches_e2,merged_matches_s2,merged_matches_b2)
+
+#compute odd probabilities
+for (a in bs){
+  a[,probOver:=1/over]
+  a[,probUnder:=1/under]
+  a[,totalProb:=probOver+probUnder]
+  a[,probOver:=probOver/totalProb]
+  a[,probUnder:=probUnder/totalProb]
+  #remove the rows with NAs 
+  a=a[complete.cases(a)]   
+  a[,totalProb:=NULL]
+}
+
+#determine the corresponding bin of the each data according to the given limits of bin
+cutpoints=c(0,0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.45,0.5,0.55,0.6,0.65,1)
+merged_matches_y1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_y2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_x1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_x2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_e1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_e2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_s1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_s2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_b1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_b2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+#calculate the average values in a bin for both implied and empirical probabilities
+summary_table_y1 = merged_matches_y1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_y2 = merged_matches_y2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_x1 = merged_matches_x1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_x2 = merged_matches_x2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_e1 = merged_matches_e1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_e2 = merged_matches_e2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_s1 = merged_matches_s1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_s2 = merged_matches_s2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_b1 = merged_matches_b1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_b2 = merged_matches_b2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+```
+
+Surprisingly, the final odds are not the best performers in all bookmakers. It is possible that not all changes in the odds are 'correct'.
+
+youwin's initial odds is the second best performer among all. There is a worsening (a slight deviation from the x=y line) in the final odds. 
+
+```{r a1,echo=FALSE,fig.width = 13}
+par(mfrow = c(1,2))
+plot(summary_table_y1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'youwin' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_y2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'youwin' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+1xbet's initial odds constitute surprisingly the best scatter plot among all other ones (very close to the x=y line). Final odds performance gets worse like in youwin's case.
+
+```{r a2,echo=FALSE,fig.width = 13}
+par(mfrow = c(1,2))
+plot(summary_table_x1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n '1xbet' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_x2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n '1xbet' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+both odds of Expekt seem to fit well to the x=y line.
+
+```{r a3,echo=FALSE,fig.width = 13}
+par(mfrow = c(1,2))
+plot(summary_table_e1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'expekt' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_e2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'expekt' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+888sport plots below are very similar in shape. The final one gets closer to the x=y one, which indicates an improvement in final odds.
+
+```{r a4,echo=FALSE,fig.width = 13}
+par(mfrow = c(1,2))
+plot(summary_table_s1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n '888sport' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_s2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n '888sport' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+bet365's initial odds are better than his final ones. There is a big change between two plots.
+
+```{r a5,echo=FALSE,fig.width = 13}
+par(mfrow = c(1,2))
+plot(summary_table_b1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'bet365' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_b2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'bet365' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+###Part b
+
+Expekt is the selected bookmaker for this part. 
+
+One can see that odd probability averages for "over" do not fluctuate very much over the years for all bins as expected since we determine the bins wrt them (we take the average within the limits).
+
+There is a big fluctuation of the odd probabilities over the years: if Expekt gives smaller odds one year compared to the real outcomes, he does the reverse the next year. (for ex the gray line below with dots for the bin (0.45,0.5]). Another observation is that "extreme cases" is captured by the odds harder than normal ones. For instance, odd prob's bigger than 0.65 deviate from the real results much more (the pink line in the first plot). It is important to note that the match quantities that reside in those bins are also small which makes their interpretation harder statistically. 
+
+There is no year when Expect is succesfull in his odds in every bin. However, 2014 seems to be the best among all (blue, red, gray line dots-triangles in the first plot and pink, green dots-triangles in the second plot seem to be close in year 2014). 2017 seems to be the worst, deviations of the line points of the same color are larger (only the green line which is bin (0.6,0.65] seems to be fine). 
+
+There is no odds given by Expekt that correspond to the following bins hence they are not displayed in the two plots: (0,0.05],(0.1,0.15],(0.2,0.25],(0.25,0.3]
+
+```{r partb, echo=FALSE,fig.width=15,fig.height = 10}
+#follow the same steps as in part a for just bookmaker expekt
+expekt_over_under=odds_ov_un[bookmaker=='Expekt']
+
+#choose the final probabilities
+expekt_over_under=expekt_over_under[,list(odd=odd[.N]),by=list(matchId,oddtype)]
+wide_odds_expekt=dcast(expekt_over_under,matchId~oddtype,value.var='odd')
+merged_matches_expekt=merge(matches,wide_odds_expekt,by='matchId')
+merged_matches_expekt[,probOver:=1/over]
+merged_matches_expekt[,probUnder:=1/under]
+merged_matches_expekt[,totalProb:=probOver+probUnder]
+merged_matches_expekt[,probOver:=probOver/totalProb]
+merged_matches_expekt[,probUnder:=probUnder/totalProb]
+merged_matches_expekt=merged_matches_expekt[complete.cases(merged_matches_expekt)]   
+merged_matches_expekt[,totalProb:=NULL]
+
+#group by Year this time as opposed to part a
+merged_matches_expekt[,odd_cut_over:=cut(probOver,cutpoints)]
+summary_table_expekt_b = merged_matches_expekt[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over,Year)]
+summary_table_expekt_b=summary_table_expekt_b[order(Year)]
+
+####
+
+#plot the results in two separate plots, there is no odd probability in the bins(<0.4)
+current <-(summary_table_expekt_b[odd_cut_over=='(0.65,1]'])
+plot(current[,list(Year,empirical_over)],type = 'b',col='deeppink',pch=19,ylim=c(0.4,0.9),ylab="probability (empirical & odd probability given by Expekt)",main="Expekt's over probability & empirical results wrt years")
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='deeppink',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.6,0.65]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='green',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='green',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.55,0.6]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='blue',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='blue',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.5,0.55]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='red',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='red',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.45,0.5]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='gray33',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='gray33',pch=17)
+
+legend("topleft", legend=c("odd probability for bin (0.65,1]", 
+                           "empirical fraction for bin (0.65,1] ",
+                           "odd probability for bin (0.6,0.65]", "empirical fraction for bin (0.6,0.65]",
+                           "odd probability for bin (0.55,0.6]", "empirical fraction for bin (0.55,0.6]",
+                           "odd probability for bin (0.5,0.55]", "empirical fraction for bin (0.5,0.55]",
+                           "odd probability for bin (0.45,0.5]", "empirical fraction for bin (0.45,0.5]"),col=c("deeppink","deeppink","green","green","blue","blue","red","red","gray33","gray33"), lty=1, pch = c(17,19,17,19,17,19,17,19,17,19),cex=0.8,text.width = 1.2)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.4,0.45]'])
+plot(current[,list(Year,empirical_over)],type = 'b',col='deeppink',pch=19,ylim=c(0,1),ylab="probability (empirical & odd probability given by Expekt)",main="Expekt's over probability & empirical results wrt years")
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='deeppink',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.3,0.4]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='green',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='green',pch=17)
+
+legend("topleft", legend=c("odd probability for bin (0.4,0.45]", "empirical fraction for bin (0.4,0.45]",
+                           "odd probability for bin1 (0.3,0.4]", "empirical fraction for bin (0.3,0.4]"),col=c("deeppink","deeppink","green","green"), lty=1, pch = c(17,19,17,19),cex=0.8,text.width = 1.2)
+
+```
+
+## Task 2
+
+A time-series visualization (line plot) of the odd changes for each odd type would be meaningful for the analysis. One can see from the plot below that as time gets closer to the match day, the changes of the odds become more frequent. The reason might be that bookmaker Betclic assumes more recent events (like footballer injuries, the score of the previous match etc) are very likely to affect the game results, hence he updates the odds more frequently with time. Fluctuations of the odds also increase wrt time. As previously said, each event is considered important for the forecast of the final score.
+
+```{r task2, echo=FALSE,dpi=200,fig.width=14,fig.height=9}
+#filter the 1X2 odd types of Betclic 
+odds_12= odds[betType=='1x2']
+odds_12[,totalhandicap:=NULL]
+odds_12_bc= odds_12[bookmaker=='Betclic']
+odds_12_bc[,time:=anytime(date)]
+freqs <-odds_12_bc[,.N,by=matchId]
+
+#choose one of the matches with the most odd changes of Betclic 
+odds_12_bc <- odds_12_bc[matchId == freqs[N > 40][1]$matchId]
+odds_12_bc <-odds_12_bc[order(time)]
+
+#plot the changes of each oddtype wrt to time (in a time series format)
+plot(odds_12_bc[oddtype == 'odd2' ,list(time,odd)],type = 'b',col='blue',pch=19,ylim=c(0,21),cex=0.8,xlab = "date and time of the odd",main = "Changes of odds given by Betclic for matchId = 04zko0D5 wrt to time")
+lines(odds_12_bc[oddtype == 'odd1' ,list(time,odd)],type = 'b',col='red',pch=19,cex=0.8)
+lines(odds_12_bc[oddtype == 'oddX' ,list(time,odd)],type = 'b',col='green',pch=19,cex=0.8)
+legend("top", legend=c("odd2", "odd1","oddX"),col=c("blue", "green","red"), lty=1, pch = 19,cex=0.8)
+
+```
+
+##Appendix
+
+###Data preparation
+
+```{r appendix_prep, eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(out.width='\\textwidth')
+
+require(data.table)
+require(anytime)
+
+matches_file_path="C:/Users/diaykanat/Desktop/IE 582/HW1/matches.rds"
+odd_details_file_path="C:/Users/diaykanat/Desktop/IE 582/HW1/odd_details.rds"
+
+matches=readRDS(matches_file_path)
+odds=readRDS(odd_details_file_path)
+matches=unique(matches)
+
+#convert anytime to date
+matches[,match_time:=anytime(date)]
+matches[,date:=NULL]
+
+#calculate total goals
+matches[,c("HomeGoals","AwayGoals"):=tstrsplit(score,':')]
+matches[,Year:=year(match_time)]
+matches$HomeGoals=as.numeric(matches$HomeGoals)
+matches[,AwayGoals:=as.numeric(AwayGoals)]
+matches[,TotalGoals:=HomeGoals+AwayGoals]
+
+#mark the over matches 
+matches[,IsOver:=0]
+matches[TotalGoals>2.5,IsOver:=1]
+matches = matches[!is.na(score)]
+```
+
+###Task1
+####Part a
+
+```{r appendix_task1_a, eval=FALSE}
+#filter over under 2.5
+odds_ov_un=odds[betType=='ou' & totalhandicap=='2.5']
+
+#remove total handicap
+odds_ov_un[,totalhandicap:=NULL]
+
+#order data in ascending date
+odds_ov_un[,date := anytime(date)]
+odds_ov_un=odds_ov_un[order(matchId, oddtype,bookmaker,date)]
+
+#select the initial odds
+odds_ov_un_initial=odds_ov_un[,list(start_odd=odd[1]),by=list(matchId,oddtype,bookmaker)]
+
+#select the final odss
+odds_ov_un_final=odds_ov_un[,list(final_odd=odd[.N]),by=list(matchId,oddtype,bookmaker)]
+
+#filter the bookmakers
+youwin_over_under_1=odds_ov_un_initial[bookmaker=='youwin']
+xBet_over_under_1=odds_ov_un_initial[bookmaker=='1xBet']
+expekt_over_under_1=odds_ov_un_initial[bookmaker=='Expekt']
+sport_over_under_1=odds_ov_un_initial[bookmaker=='888sport']
+bet365_over_under_1=odds_ov_un_initial[bookmaker=='bet365']
+
+youwin_over_under_2=odds_ov_un_final[bookmaker=='youwin']
+xBet_over_under_2=odds_ov_un_final[bookmaker=='1xBet']
+expekt_over_under_2=odds_ov_un_final[bookmaker=='Expekt']
+sport_over_under_2=odds_ov_un_final[bookmaker=='888sport']
+bet365_over_under_2=odds_ov_un_final[bookmaker=='bet365']
+
+#prepare the table where odds are given in the wide format for a specific match by a bookmaker
+youwin_wide_1=dcast(youwin_over_under_1,matchId~oddtype,value.var='start_odd')
+xBet_wide_1=dcast(xBet_over_under_1,matchId~oddtype,value.var='start_odd')
+expekt_wide_1=dcast(expekt_over_under_1,matchId~oddtype,value.var='start_odd')
+sport_wide_1=dcast(sport_over_under_1,matchId~oddtype,value.var='start_odd')
+bet365_wide_1=dcast(bet365_over_under_1,matchId~oddtype,value.var='start_odd')
+
+youwin_wide_2=dcast(youwin_over_under_2,matchId~oddtype,value.var='final_odd')
+xBet_wide_2=dcast(xBet_over_under_2,matchId~oddtype,value.var='final_odd')
+expekt_wide_2=dcast(expekt_over_under_2,matchId~oddtype,value.var='final_odd')
+sport_wide_2=dcast(sport_over_under_2,matchId~oddtype,value.var='final_odd')
+bet365_wide_2=dcast(bet365_over_under_2,matchId~oddtype,value.var='final_odd')
+
+#merge the matches and odds tables for initial odds
+merged_matches_y1=merge(matches,youwin_wide_1,by='matchId')
+merged_matches_x1=merge(matches,xBet_wide_1,by='matchId')
+merged_matches_e1=merge(matches,expekt_wide_1,by='matchId')
+merged_matches_s1=merge(matches,sport_wide_1,by='matchId')
+merged_matches_b1=merge(matches,bet365_wide_1,by='matchId')
+
+#merge the matches and odds tables for final odds
+merged_matches_y2=merge(matches,youwin_wide_2,by='matchId')
+merged_matches_x2=merge(matches,xBet_wide_2,by='matchId')
+merged_matches_e2=merge(matches,expekt_wide_2,by='matchId')
+merged_matches_s2=merge(matches,sport_wide_2,by='matchId')
+merged_matches_b2=merge(matches,bet365_wide_2,by='matchId')
+
+bs <-list(merged_matches_y1,merged_matches_x1,merged_matches_e1,merged_matches_s1,merged_matches_b1,
+          merged_matches_y2,merged_matches_x2,merged_matches_e2,merged_matches_s2,merged_matches_b2)
+
+#compute odd probabilities
+for (a in bs){
+  a[,probOver:=1/over]
+  a[,probUnder:=1/under]
+  a[,totalProb:=probOver+probUnder]
+  a[,probOver:=probOver/totalProb]
+  a[,probUnder:=probUnder/totalProb]
+  #remove the rows with NAs 
+  a=a[complete.cases(a)]   
+  a[,totalProb:=NULL]
+}
+
+#determine the corresponding bin of the each data according to the given limits of bin
+cutpoints=c(0,0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.45,0.5,0.55,0.6,0.65,1)
+merged_matches_y1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_y2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_x1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_x2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_e1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_e2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_s1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_s2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+merged_matches_b1[,odd_cut_over:=cut(probOver,cutpoints)]
+merged_matches_b2[,odd_cut_over:=cut(probOver,cutpoints)]
+
+#calculate the average values in a bin for both implied and empirical probabilities
+summary_table_y1 = merged_matches_y1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_y2 = merged_matches_y2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_x1 = merged_matches_x1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_x2 = merged_matches_x2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_e1 = merged_matches_e1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_e2 = merged_matches_e2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_s1 = merged_matches_s1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_s2 = merged_matches_s2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+summary_table_b1 = merged_matches_b1[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+summary_table_b2 = merged_matches_b2[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over)]
+
+# display 2 plots side by side
+par(mfrow = c(1,2))
+plot(summary_table_y1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'youwin' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_y2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'youwin' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+
+plot(summary_table_x1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n '1xbet' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_x2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n '1xbet' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+
+plot(summary_table_e1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'expekt' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_e2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'expekt' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+
+plot(summary_table_s1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n '888sport' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_s2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n '888sport' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+
+plot(summary_table_b1[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and initial 'over' probabilities for\n 'bet365' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+plot(summary_table_b2[,list(empirical_over,probabilistic_over)],xlab = "fraction of games finished over",ylab="'over' probability average",main = "Comparison of empirical\n and final 'over' probabilities for\n 'bet365' ",cex=4,cex.main=0.8)
+abline(0,1,col='red')
+```
+
+####Part b
+
+```{r appendix_task1_b, eval=FALSE}
+#follow the same steps as in part a for just bookmaker expekt
+expekt_over_under=odds_ov_un[bookmaker=='Expekt']
+
+#choose the final probabilities
+expekt_over_under=expekt_over_under[,list(odd=odd[.N]),by=list(matchId,oddtype)]
+wide_odds_expekt=dcast(expekt_over_under,matchId~oddtype,value.var='odd')
+merged_matches_expekt=merge(matches,wide_odds_expekt,by='matchId')
+merged_matches_expekt[,probOver:=1/over]
+merged_matches_expekt[,probUnder:=1/under]
+merged_matches_expekt[,totalProb:=probOver+probUnder]
+merged_matches_expekt[,probOver:=probOver/totalProb]
+merged_matches_expekt[,probUnder:=probUnder/totalProb]
+merged_matches_expekt=merged_matches_expekt[complete.cases(merged_matches_expekt)]   
+merged_matches_expekt[,totalProb:=NULL]
+
+#group by Year this time as opposed to part a
+merged_matches_expekt[,odd_cut_over:=cut(probOver,cutpoints)]
+summary_table_expekt_b = merged_matches_expekt[,list(empirical_over=mean(IsOver),probabilistic_over=mean(probOver),.N),by=list(odd_cut_over,Year)]
+summary_table_expekt_b=summary_table_expekt_b[order(Year)]
+
+####
+
+#plot the results in two separate plots, there is no odd probability in the bins(<0.4)
+current <-(summary_table_expekt_b[odd_cut_over=='(0.65,1]'])
+plot(current[,list(Year,empirical_over)],type = 'b',col='deeppink',pch=19,ylim=c(0.4,0.9),ylab="probability (empirical & odd probability given by Expekt)",main="Expekt's over probability & empirical results wrt years")
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='deeppink',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.6,0.65]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='green',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='green',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.55,0.6]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='blue',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='blue',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.5,0.55]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='red',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='red',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.45,0.5]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='gray33',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='gray33',pch=17)
+
+legend("topleft", legend=c("odd probability for bin (0.65,1]", 
+                           "empirical fraction for bin (0.65,1] ",
+                           "odd probability for bin (0.6,0.65]", "empirical fraction for bin (0.6,0.65]",
+                           "odd probability for bin (0.55,0.6]", "empirical fraction for bin (0.55,0.6]",
+                           "odd probability for bin (0.5,0.55]", "empirical fraction for bin (0.5,0.55]",
+                           "odd probability for bin (0.45,0.5]", "empirical fraction for bin (0.45,0.5]"),col=c("deeppink","deeppink","green","green","blue","blue","red","red","gray33","gray33"), lty=1, pch = c(17,19,17,19,17,19,17,19,17,19),cex=0.8,text.width = 1.2)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.4,0.45]'])
+plot(current[,list(Year,empirical_over)],type = 'b',col='deeppink',pch=19,ylim=c(0,1),ylab="probability (empirical & odd probability given by Expekt)",main="Expekt's over probability & empirical results wrt years")
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='deeppink',pch=17)
+
+current <-(summary_table_expekt_b[odd_cut_over=='(0.3,0.4]'])
+lines(current[,list(Year,empirical_over)],type = 'b',col='green',pch=19)
+lines(current[,list(Year,probabilistic_over)],type = 'b',col='green',pch=17)
+
+legend("topleft", legend=c("odd probability for bin (0.4,0.45]", "empirical fraction for bin (0.4,0.45]",
+                           "odd probability for bin1 (0.3,0.4]", "empirical fraction for bin (0.3,0.4]"),col=c("deeppink","deeppink","green","green"), lty=1, pch = c(17,19,17,19),cex=0.8,text.width = 1.2)
+
+```
+
+###Task2
+
+```{r appendix, eval=FALSE}
+odds_12= odds[betType=='1x2']
+odds_12[,totalhandicap:=NULL]
+odds_12_bc= odds_12[bookmaker=='Betclic']
+odds_12_bc[,time:=anytime(date)]
+freqs <-odds_12_bc[,.N,by=matchId]
+
+#choose one of the matches with the most odd changes of Betclic 
+odds_12_bc <- odds_12_bc[matchId == freqs[N > 40][1]$matchId]
+odds_12_bc <-odds_12_bc[order(time)]
+
+#plot the changes of each oddtype wrt to time (in a time series format)
+plot(odds_12_bc[oddtype == 'odd2' ,list(time,odd)],type = 'b',col='blue',pch=19,ylim=c(0,21),cex=0.8,xlab = "date and time of the odd",main = "Changes of odds given by Betclic for matchId = 04zko0D5 wrt to time")
+lines(odds_12_bc[oddtype == 'odd1' ,list(time,odd)],type = 'b',col='red',pch=19,cex=0.8)
+lines(odds_12_bc[oddtype == 'oddX' ,list(time,odd)],type = 'b',col='green',pch=19,cex=0.8)
+legend("top", legend=c("odd2", "odd1","oddX"),col=c("blue", "green","red"), lty=1, pch = 19,cex=0.8)
+```
