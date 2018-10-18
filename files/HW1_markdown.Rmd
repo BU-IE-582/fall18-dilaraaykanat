@@ -41,6 +41,8 @@ matches = matches[!is.na(score)]
 ###Part a
 
 youwin, 1xbet, expekt, 888sport, bet365 are the selected bookmakers for this part.
+Generally looking, all 5 bookmakers have odd probability averages close to the empirical real results which indicates that they are good at their 'forecasting'.
+The scatter plots seem to fit x=y line well. 
 
 
 ```{r a0,echo=FALSE,fig.width = 13}
