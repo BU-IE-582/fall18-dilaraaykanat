@@ -7,3 +7,7 @@
 ## Week 5 (October 18)
 
 [Here](files/HW1_markdown.html) is my HW1
+
+## Week 6 (October 25)
+
+[Here](files/HW2_markdown.html) is my HW2
