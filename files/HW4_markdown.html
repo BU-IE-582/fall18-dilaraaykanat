@@ -1152,6 +1152,22 @@ sum(abs(park_test_labels-predicted_svm))/1000</code></pre>
 <pre><code>## [1] 2.491341</code></pre>
 <pre class="r"><code>mean(abs(predict(sss, newx=park) - labels_p))</code></pre>
 <pre><code>## [1] 1.764904</code></pre>
+<pre class="r"><code>#mushroom
+#CoverType
+#two options that were tried are given below 
+
+# set.seed(1)
+# tune.out = e1071::tune.svm(e1071::svm,y=as.factor(labels_o), x=orman,kernel = &quot;polynomial&quot;,gamma=c(0.0001,0.00001,0.000001),cost=20,degree=c(3,4,5),tunecontrol = tune.control(sampling = &quot;cross&quot;,cross=10))
+# summary(tune.out)
+# svm_model2 = e1071::svm(as.factor(labels_o)~., data=orman,cost = 20,type = 'C',kernel = &quot;polynomial&quot;,gamma = 0.00001, degree = 3)
+# pred_svm2 = predict(svm_model2,newdata = orman_test)
+# table(orman_test$label,pred_svm2)
+# svmErrorRate2=1-sum(spor_test$label==pred_svm2)/nrow(spor_test)
+# svmErrorRate2
+# 
+# set.seed(1)
+# tune.out = e1071::tune.svm(e1071::svm,y=mantartl, x=as.data.table(mantart),kernel = &quot;radial&quot;,gamma=c(0.0001,0.00001,0.01),cost=c(10,20,30),tunecontrol = tune.control(sampling = &quot;cross&quot;,cross=10))
+# summary(tune.out)</code></pre>
 </div>
 <div id="overall-comments" class="section level3">
 <h3>Overall Comments</h3>
