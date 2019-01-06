@@ -1,0 +1,139 @@
+---
+title: "HW5 (07.01.2019)"
+author: "Dilara Aykanat - IE582 - Fall 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(cluster)
+require(data.table)
+require(analogue)
+require(glmnet)
+require(ROCR)
+require(TunePareto)
+require(dplyr)
+```
+
+In this homework, I proposed two different distance measures: euclidean and manhattan distances.
+Number of clusters applied was 7,8,9.
+The data was scaled before the process in order to cluster with a minimum bias.
+
+```{r preprocess}
+path ="C:/Users/diaykanat/Desktop/IE 582/HW5/Musk1.cSV"
+
+#read the data
+musk_=read.table(path,header=FALSE,sep=",")
+musk_<-as.data.table(musk_)
+setnames(x=musk_,old ="V1",new = "label")
+setnames(x=musk_,old ="V2",new = "id")
+#scale the data
+musk<-scale(musk_[,-c(1:2)])
+#take the labels of distinct label_id combination
+trainclass<-(musk_ %>% distinct(label, id))$label
+#trainclass<-musk_$label
+
+#number of clusters tried
+c_levels<-c(7,8,9)
+
+#distance measures
+dists<-c("manhattan","euclidean")
+
+#clustering methods
+methods<-c("kmed","hier")
+```
+
+## Results
+
+10-fold cross validation was applied on the data. The resulting AUC and accuracy values are presented.
+4 different lambda values were tried for the lasso logistic regression.
+It can be seen that hierarchical clustering method (8 clusters) with euclidean distance measure gave the best results. (AUC mean is 0.9673913 which is the highest, Accuracy is 0.8695652 which is also highest)
+
+Another important observation is that the euclidean distance measure outperformed manhattan distance measure. Hierarchical clustering method also seems to be better compared to the k-medoids approach. Note that hierarchical clustering uses complete linkage method by default (We saw it under the name of MAX, where the maximum distance between pairs from different clusters are considered). An interesting remark is that the increase in the number of clusters does not necessarily improve the AUC_mean nor Accuracy. Except from some cases like hierarchical clustering with manhattan distances, methods with 9 clusters performed worse than the methods with 8 clusters.  8 clusters generally were better than 7 clusters (except from kmed-euclidean case)
+
+
+
+```{r cv}
+nofReplications=1
+nFolds=10
+set.seed(123)
+indices=generateCVRuns(trainclass,nofReplications,nFolds,stratified=TRUE)
+
+cvresult=data.table()
+for(i in 1:nofReplications) {
+  thisReplication=indices[[i]]
+  for(j in 1:nFolds){
+    testindices=thisReplication[[j]]
+
+    for(d in dists){
+      distances = dist(musk, method = d)
+      for(m in methods){
+        for(c in c_levels){
+          #hierarchical clustering approach
+          if(m == "hier"){
+            clusters <- hclust(distances)
+            #plot(clusters)
+            clustering <- cutree(clusters, c)
+          }else { #partitioning around medoids approach
+            pam.res<- pam(distances,c)
+            clustering<-pam.res$clustering}
+    
+          binded<-as.data.table(cbind(musk,clustering))
+          #find the cluster centroids
+          centroids<-binded[, lapply(.SD, mean), by=clustering]
+          centroids[,clustering:=NULL]
+          #For each bag: Calculate the distance of its instances to each cluster centroid
+          distances_ = distance(musk,as.matrix(centroids),method = d)
+          a<-cbind(distances_,musk_[,.(label,id)])
+          #the average of its instance distances to the cluster centroids
+          a<-a[, lapply(.SD, mean), by=id]
+          
+          
+          set.seed(1)
+          lambdas <-c(0.001,0.01,0.005,0.1)
+          #find the best lambda and train the model
+          lasso_model<-cv.glmnet(as.matrix(a[-testindices,!c("label","id")]),as.factor(a[-testindices]$label),alpha=1,lambda=lambdas,family="binomial",type.measure = 'class')
+          bestlam <- lasso_model$lambda.min
+          bestlam
+          predicted_lasso_r<-predict(lasso_model,s=bestlam,newx=as.matrix(a[testindices,!c("label","id")]),type="response")
+          #compute predicted classes for the accuracy
+          predicted_lasso<-predict(lasso_model,s=bestlam,newx=as.matrix(a[testindices,!c("label","id")]),type="class")
+          
+          #take the prediction probabilities
+          pred <- prediction(as.numeric(predicted_lasso_r), a[testindices]$label)
+          #take the area under the roc curve performance of the predictions
+          auc.tmp <- performance(pred,"auc")
+          auc <- as.numeric(auc.tmp@y.values)
+
+          table(a[testindices]$label,predicted_lasso)
+          sum(a[testindices]$label==predicted_lasso)/nrow(a[testindices])
+          
+    if(nrow(cvresult)==0){
+      cvresult=data.table(Replication=i,Fold=j,distance_m=d, method = m, clev = c, TestId=testindices,
+                          Predictions=as.numeric(as.character(predicted_lasso)),Real=trainclass[testindices],AUC = auc)
+    } else {
+      cvresult=rbind(cvresult,data.table(Replication=i,Fold=j,distance_m=d, method = m, clev = c, TestId=testindices,
+                                         Predictions=as.numeric(as.character(predicted_lasso)),Real=trainclass[testindices],AUC = auc))
+    }
+        }
+      }
+    }
+  }    
+}
+#present the cv results with AUC and Accuracy means
+cvresult[,list(AUC_mean = mean(AUC),Accu=mean(Predictions==Real)),by=list(method,distance_m,clev)]
+```
+
+Packages used are:
+
+```{r packages,eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(cluster)
+require(data.table)
+require(analogue)
+require(glmnet)
+require(ROCR)
+require(TunePareto)
+require(dplyr)
+```
+
