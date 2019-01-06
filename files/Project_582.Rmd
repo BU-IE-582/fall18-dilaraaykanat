@@ -1,0 +1,777 @@
+---
+title: "Project-582/ Team 7"
+author: "Feyyaz Þentürk, Tarkan Temizöz, Dilara Aykanat"
+date: "7 Ocak 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction
+
+Sports betting is a billion-dollar industry that attracts people from all around the world. Every day, millions of people try their luck in guessing outcomes of games and earn money. There are bookmakers that facilitate this progress by giving odd values to games. These games range from soccer to ending of Harry Potter novels. Bookmakers themselves try and guess the outcome of each game and decide their odds accordingly, with a profit margin for themselves. In this project, we are tasked with guessing the probabilities for the outcomes of several English Premier League matches by using a large odd data from various bookmakers and from various odd types. We are free to use whatever method we want, and we are also free to manipulate the odd data, by adding or subtracting features. 
+Firstly, the odd data involves different types of odds. Our task is to guess the probabilities for “home win”, “tie” and “away win”. Some examples of odd types are:
+1x2: This category has three different odds, one for home win (1), one for tie (x) and one for away win (2). 
+over-under: This category gives odds for the total number of goals being above or below a certain threshold value. This threshold has different values. 
+These odds mostly range from 1 to 10, however there are some odds that are over 100. Odd data also has league, match and date information. The date information is useful because one can observe the change in odds to get an idea on the match. For example, if there is a sharp decrease in home win odd near the start of a game, one can guess that the home team has a high chance of winning. This change can be attributed to weather conditions, injuries of key players etc. 
+There is also a separate file for match information. Match information data has matches starting from 2012. The data contains team names, match dates and match results. Match results is the dependent variable that we are trying to guess. It has three levels, home win, tie and away win. Therefore, we can classify our problem as a multi-class prediction problem. There is also one key point, the classes have an ordinal nature. A home win result cannot be away win, without being a tie. 
+We first decided on which model to use. There exists a lasso regression example. But we thought that we can find a better model. We tried random forest, support vector machine and stochastic gradient boosting (SGB). In the end, SGB gave better results. Also, SGB does not need scaled data, since it works with trees. 
+Next, we tried to find key features that can improve our predictions. By reading several papers, we have decided to include each teams’ ELO ratings to the model. ELO is used to rank teams according to their performance. If a team beats another team with higher ELO rating than theirs, the winning teams ELO improves a lot. However, if a team beats another team with a lower ELO rating than theirs, the winning teams ELO improves little. We added three features named, “Home ELO”, “Away ELO” and “ELO Difference”. ELO will be further discussed in literature summary section.  
+Lastly, we have added the winning streak of home teams in their stadium, going five matches back. This streak is an important measure for a team that shows its overall performance in the season. 
+Our performance is measured by “Ranked Probability Score” (RPS). It considers the probabilities and the actual results. The lower the RPS score the better the prediction. 
+	
+##	Literature Summary	
+
+###“Using ELO ratings for match result prediction in association football”
+###Lars Magnus Hvattum, Halvard Arntzen
+In the paper, authors try to come up with a prediction model using solely the ELO ratings. Match results are governed partly by skill and partly by chance. Therefore, authors say that prediction models can be used to determine which factor describe skill and which factors describe chance. Authors build an ordered probit regression model using the ELO ratings. They compare this model to this mode to naïve approaches, and models obtained using the available odds data of the bookmakers. The comparison is done by quadratic loss functions and by economic measures involving betting on the past matches using the models. In the end, the models with market odds performed better than ELO models. They conclude that, ELO rating is a great way to encode information on past results. This paper informed us about the usage of ELO ratings and encouraged us to use them in our model.
+
+The paper can be found in the following link:
+
+<https://github.com/BU-IE-582/fall18-dilaraaykanat/blob/master/files/Using-ELO-ratings.pdf>
+
+###“The Betting Odds Rating System: Using soccer forecasts to forecast soccer”
+###Fabian Wunderlich, Daniel Memmert
+The paper combines ELO ratings and betting odds into a model. They start by listing the various sources of forecasts for match results. These include human judgement, rankings, mathematical models and betting odds. They conclude that human judgement is better at predicting match statistics but its performance on predicting match results is outperformed by even a naïve approach where the home team is always predicted to win. Rankings are useful for various sports but still outperformed by mathematical models and betting odds. They say that, since the bookmakers have financial worries, their odds perform better than tipsters on newspapers. The authors created a data set with 1x2 odds of various matches and ELO ratings of various teams. ELO ratings are calculated and adjusted after each match. In the paper, the odds are converted into probabilities by using normalization and then a prediction model is created by combining these probabilities by ELO ratings. They say that their study is an example of the previous match results being not enough for the prediction of future games. Expert opinion holds precious information which can be incorporated into the model by betting odds. 
+
+The paper can be found in the following link:
+
+<https://github.com/BU-IE-582/fall18-dilaraaykanat/blob/master/files/Betting-odds-rating-system.pdf>
+
+##	Approach
+
+###	 Models We Used
+####  General Idea
+Having a preprocessed very good feature set consisting of 1x2 odds from multiple bookmakers, we build our strategy as first finding a classifier to learn from the odds and then changing feature set by adding new interesting features or deleting them. Apart from generalized regression model provided by our instructor, we also used GBM and random forest classifiers. For feature selection, we developed several ideas; however, very few of them gave better results. Some of them did not even provided sensible predictions. The reason for that is bookmakers are actually very good at setting odds so that odds hold all the information about a particular match. Providing a feature that is not held by odds is the real problem to address in our case.
+	
+#### Applying Stochastic Gradient Boosting
+Stochastic Gradient Boosting is a very successful model in this case. For the feature set we have, applying GBM results in probability estimates better than random forest’. For the validation set we created, containing the first 12 week matches in 2018-2019 season, GBM also gave better results than generalized regression model. Therefore, we decided to use GBM and moved to the second phase of our strategy, finding good features to add.
+	
+#### Adding Over-Under Type Odds
+
+In addition to 1x2 type of odds, we also added over-under odds with 2.5 total handicap to check whether the results will improve; as a result, we achieve slightly better results in terms of the mean RPS in the training data. Therefore, we kept these odds throughout our submissions. During this process, since not all games are evaluated by the bookmakers to set an over-under odd with 2.5 total handicap, we had lots of N/A’s in our data. We got rid of this problem by taking column means and filling the gaps.
+	
+#### Adding ELO Ratings
+
+Mentioned above, we calculated ELO ratings for each team and found probability estimates for our model.  As there were some mismatches in the names of the teams, we made a couple of minor changes in matches data before calculating the ELO ratings. For instance, a team was written as “manchester united” and in others as “manchester utd” or “Manchester-city” and “Manchester city”. The names were modified to be the same in all games.
+We used the package named “ELO” to calculate the ELO ratings of the teams. Initial ratings were set to 1500. K factor (can be considered as a scale factor) was taken as 30, it determines how much point the winning team will gain at the end of each match.  The important point was to find the ELO of the home and away teams at the date of the match, therefore the ratings were calculated cumulatively by iterating over the days. Since each team plays at most one game in each round, the last calculated ELO gives the valid information about the current status of the team and can be used for the next week’s prediction. 
+From the ELO ratings the teams have, we can also calculate probabilities for each game. The problem is that no tie probability is given. To attack this issue, some probabilities from Home and Away side must be cut and added to tie probability. For this purpose, we used last year’s matches as a training data as ELO ratings are very similar to today’s and found out which fraction of Home and Away probabilities can be cut. Using this method, we calculate ELO probabilities and see that it gave similar (slightly worse) RPS results with GBM.
+In addition, we added these ELO ratings as a feature into the feature set. GBM with this feature set provided worse results than before. Apart from away and home team’s ELO ratings, their difference was also added as a feature. Using them together without their difference produced a model with a minimum weight given to the odds, majorly dominated by home & away ELO. Adding the difference somehow balanced the weights and gave better RPS performance. 
+	
+#### Finding an Average between GBM and ELO
+
+So far, stochastic gradient boosting and ELO provides decent probability estimates on training data having similar RPS values noting the fact that GBM is more successful as it learns odds from multiple bookmakers while ELO relies only on past results of individual teams. Having these two models ready at hand, we thought that there could be a way to find better results where we take GBM results for some games and ELO results for others. Taking simply the averages of these two gives did not improve our results; however, analyzing game-by-game we found out that ELO is more successful when Tie-probability is lower than GBM’s, thus for these games we used ELO results, otherwise GBM probabilities. On third week, we used this strategy but decided that this model is unreliable giving a bad result. As a result, we did not call this approach later in our submissions. This model is very open to be improved and can be analyzed for further studies.
+	
+#### GBM with Cross Validation
+
+Decided that GBM is our final model, we tried to tune its parameters depth, learning rate and number of trees it uses, by applying cross validation with some set of parameters hence improving our model.
+	
+#### Pinnacle Odds as Feature Selection
+Giving the fact that Pinnacle is a very successful bookmaker providing better estimates than most of the models, we apply our model with GBM on Pinnacle odds in the last week.
+	
+###	 Models not used
+
+####	Scaling and PCA
+
+The features used in the model are directly or indirectly correlated, which is not usually a desired situation in data mining: home & away odds, ELO difference & home and away ratings, over & under odds etc. With the expectation of breaking these dependencies, we scaled the feature set and applied PCA. We used up to 12 principal components which covered 99% of the total variance. The features were replaced by the component scores. However, this transformation did not lead to any improvement in RPS results. 
+
+####	Adding Mean Odd Changes
+
+Since we already know the importance of the odd changes from HW1, we tried to add it to our model as well. Mean odd change of all bookmakers was considered as a new feature. As opposed to ELO case, the addition of the difference did not result in any RPS improvement. 
+	
+####	Ordinal Logistic Regression
+
+We used polr function from MASS package to build an ordered logistic regression model to capture the ordinal characteristic of the game results (there can’t be any win result without having a tie during the match). However, the predicted probabilities were very close to each other, its RPS performance was pretty far behind.
+	
+##	Results
+
+After the ending of the rounds, we decided to choose the model with over and under odds (NA values filled with mean), 2X1 odds all with opening and closing odds, home & away & difference ELO given to GBM model whose parameters where selected during cross validation, as this method gave the overall smallest RPS result while testing on the previous results of 2018. Note that in the 8 rounds during which we submitted our predictions, there were many matches that ended in surprising results. Therefore, some variance between the performances of each round is acceptable. We did not use this final method in our submissions, however it gave the minimum RPS on the 8 rounds. 
+Our submission’s mean RPS was calculated as 0.20754 whereas this final method gave 0.19995 mean RPS value. 
+All our results are also summarized in the excel file given in the following link, as our submissions were recorded there:
+	
+<https://github.com/BU-IE-582/fall18-dilaraaykanat/blob/master/files/Submission_info.xlsx>
+
+###Final Predictions and RPS Results
+
+Our final results for all 8 rounds can be seen in the table below:
+
+```{r cars,echo=FALSE}
+readRDS("sonuclarr.rds")
+```
+
+##	Conclusions and Future Work
+
+To conclude, we can say that it is hard to find useful additional features to predict 2X1 results, as a significant amount of information is already present in bookmaker's odd data. Simple Pinnacle model's performance is not surprising in that sense. In our final model, we made use of all bookmakers 2X1 odds and over-under odds for 2.5 handicap. ELO was firstly used in chess, then applied in soccer world, we also added it for home and away teams' ELO along with their difference. It is important to remember that odds are also including some sort of ELO rating in them, that's why the marginal increase in the performances did not turn out to be as high as expected. GBM was the most successful method, it was fast even with a large number of features like in our example. It underlined the goodness of boosting the decision trees on ordinal data.
+Possible extensions to our model can be to filter the most succesfull bookmakers' odds to filter some "noisy" bookmakers. Another extension could be to alter between gbm and glmnet (lasso) according to the past RPS results. We did not analyze the bookmaker's characteristics separately such as their variance, accuracy, difference from the mean etc. They can have meaningful insights. 
+
+##	Code
+
+All codes, functions in separate r files can be found on the following link:
+
+<https://github.com/BU-IE-582/fall18-dilaraaykanat/tree/master/files/Project_Codes>
+
+```{r main,eval=FALSE}
+
+require(data.table)
+require(TunePareto)
+require(gbm)
+require(imputeTS)
+
+setwd('C:/Users/diaykanat/Desktop/IE 582/Project/Proje_T')
+
+testStart=as.Date('2018-11-29')
+testStartend=as.Date('2019-01-05')
+trainStart=as.Date('2012-07-15')
+trainLateStart=as.Date('2015-07-15')
+
+rem_miss_threshold=0.01 #parameter for removing bookmaker odds with missing ratio greater than this threshold
+
+source('data_preprocessing.r')
+source('feature_extraction.r')
+source('performance_metrics.r')
+source('train_models.r')
+source('train_gbm.r')
+source('addElo.r')
+source('rps_calc.r')
+source('elo_probs.r')
+source('combine_probs.r')
+source('crossval_gbm.r')
+
+matches_data_path='df9b1196-e3cf-4cc7-9159-f236fe738215_matches.rds'
+odd_details_data_path='df9b1196-e3cf-4cc7-9159-f236fe738215_odd_details.rds'
+
+# read data
+matches_raw=readRDS(matches_data_path)
+odd_details_raw=readRDS(odd_details_data_path)
+# preprocess matches
+matches=matches_data_preprocessing(matches_raw)
+
+# preprocess odd data
+odd_details=details_data_preprocessing(odd_details_raw,matches)
+# extract open and close odd type features from multiple bookmakers
+features=extract_features.openclose(matches,odd_details,pMissThreshold=rem_miss_threshold,trainStart,testStart)
+
+# divide data based on the provided dates 
+train_features=features[Match_Date>=trainStart & Match_Date<testStart] 
+test_features=features[Match_Date>=testStart & Match_Date<testStartend] 
+
+# run glmnet on train data with tuning lambda parameter based on RPS and return predictions based on lambda with minimum RPS
+predictions_glm=train_glmnet(train_features, test_features)
+RPS_TEST=rps_calc(predictions_glm$predictions,3)
+mean(RPS_TEST)
+predictions_glm$predictions[,RPS:=RPS_TEST]
+rps=predictions_glm$predictions[,mean(RPS),by='Match_Result']
+rps
+
+# gbm
+gbm_parameters=crossValidationTrain(train_features)
+gbm_parameters = c(5,0.05)
+predictions_gbm=train_gbm(train_features, test_features,gbm_parameters[1],gbm_parameters[2])
+RPS_TEST=rps_calc(predictions_gbm$predictions,3)
+mean(RPS_TEST)
+predictions_gbm$predictions[,RPS:=RPS_TEST]
+rps=predictions_gbm$predictions[,mean(RPS),by='Match_Result']
+rps
+
+# elo probabilities
+matches_elo=add_elo(matches,testStart,testStartend)
+elo_prob_Matches=elo_train(matches_elo,testStart,testStartend)
+RPS_TEST=rps_calc(elo_prob_Matches,19)
+mean(RPS_TEST)
+elo_prob_Matches[,RPS:=RPS_TEST]
+rps=elo_prob_Matches[,mean(RPS),by='Match_Result']
+rps
+
+# elo-gbm combined
+combined_probs=combine_probs(elo_prob_Matches)
+RPS_TEST=rps_calc(combined_probs,27)
+mean(RPS_TEST)
+combined_probs[,RPS:=RPS_TEST]
+rps=combined_probs[,mean(RPS),by='Match_Result']
+rps
+
+# gbm with elo ratings and differences
+features_elo=merge(features,matches_elo[,list(matchId,Home_Elo,Away_Elo,EloDifference)],by="matchId")
+train_features_elo=features[Match_Date>=trainLateStart & Match_Date<testStart] 
+test_features_elo=features[Match_Date>=testStart & Match_Date<testStartend] 
+predictions_gbm_elo=train_gbm(train_features_elo, test_features_elo,gbm_parameters[1],gbm_parameters[2])
+RPS_TEST=rps_calc(predictions_gbm_elo$predictions,3)
+mean(RPS_TEST)
+predictions_gbm_elo$predictions[,RPS:=RPS_TEST]
+rps=predictions_gbm_elo$predictions[,mean(RPS),by='Match_Result']
+rps
+
+#ADD ELO
+#@param matches
+add_elo <- function(matches,test_date,test_date_end){
+  matches$Home=gsub("united","utd",matches$Home)
+  matches$Away=gsub("united","utd",matches$Away)
+  matches$Home=gsub(" ","-",matches$Home)
+  matches$Away=gsub(" ","-",matches$Away)
+  matches$Home=gsub("newcastle-utd","newcastle",matches$Home)
+  matches$Away=gsub("newcastle-utd","newcastle",matches$Away)
+  library(dplyr)
+  teams <- data.frame(team = unique(c(matches$Home, matches$Away)))
+  teams <- teams %>%
+    mutate(elo = 1500)
+  teams <- teams %>%
+    mutate(diff = 1)
+  matches <- matches %>%
+    mutate(result = if_else(Home_Score > Away_Score, 1,
+                            if_else(Home_Score == Away_Score, 0.5, 0)))
+  copy=as.data.table(matches)
+  copy=copy[,Home_Elo:=1500]
+  copy=copy[,Away_Elo:=1500]
+  copy_train=copy[Match_Date<test_date]
+  copy_test=copy[Match_Date>=test_date & Match_Date<test_date_end]
+  library(elo)
+  for (i in (seq_len(nrow(copy_train)))){
+    match <- copy_train[i, ]
+    # Pre-match ratings
+    teamA_elo <- subset(teams, team == match$Home)$elo
+    teamB_elo <- subset(teams, team == match$Away)$elo
+    copy_train[i,]$Home_Elo=teamA_elo
+    copy_train[i,]$Away_Elo=teamB_elo
+    new_elo <- elo.calc(wins.A = match$result,
+                        elo.A = teamA_elo,
+                        elo.B = teamB_elo,
+                        k = 30)
+    teamA_new_elo <- new_elo[1, 1]
+    teamB_new_elo <- new_elo[1, 2]
+    unique(matches$result)
+    # We then update the ratings for teams A and B
+    # and leave the other teams as they were
+    teams <- teams %>%
+      mutate(elo = if_else(team == match$Home, teamA_new_elo,
+                           if_else(team == match$Away, teamB_new_elo, elo)))
+  }
+  for (i in (seq_len(nrow(copy_test)))){
+    match <- copy_test[i, ]
+    # Pre-match ratings
+    teamA_elo <- subset(teams, team == match$Home)$elo
+    teamB_elo <- subset(teams, team == match$Away)$elo
+    copy_test[i,]$Home_Elo=teamA_elo
+    copy_test[i,]$Away_Elo=teamB_elo
+  }
+  copy=rbind(copy_train,copy_test)
+  copy[,EloDifference:=(Home_Elo-Away_Elo)]
+  return(copy)
+}
+
+#COMBINE PROBABILITIES 
+combine_probs <- function(matchdat){
+  matchdat=matchdat[,Match_Result:=NULL]
+  combined=merge(matchdat,predictions_gbm$predictions,by='matchId')
+  combined=combined[,H1:= (Home.y+Home_Prob)/2]
+  combined=combined[,T1:= (Tie+Tie_Prob)/2]
+  combined=combined[,A1:= (Away.y+Away_Prob)/2]
+  
+  combined2=merge(matchdat,predictions_gbm$predictions,by='matchId')
+  combined2=combined2[,H1:= ifelse(Tie_Prob>Tie,Home.y,Home_Prob)]
+  combined2=combined2[,T1:= ifelse(Tie_Prob>Tie,Tie,Tie_Prob)]
+  combined2=combined2[,A1:= ifelse(Tie_Prob>Tie,Away.y,Away_Prob)]
+
+  return(combined2)
+}
+
+#cross validation of GBM
+crossValidationTrain=function(train.data) #returns mean train accuracy based on cross validation
+{
+  set.seed(1)
+  nFolds=10
+  nofReplications=2
+  cvindices=generateCVRuns(train.data$Match_Result,nofReplications,nFolds,stratified=TRUE)
+  k=1
+  accuracy=c()
+  depth=c(1,3,5)
+  shrinkage=c(0.1,0.01,0.001)
+  for(i in 1:nofReplications) {
+    thisReplication=cvindices[[i]]
+    for(j in 1:nFolds){
+      testindices=order(thisReplication[[j]])
+      cvtrain=train.data[-testindices,]    
+      cvtest=train.data[testindices,]
+      for(l in 1:length(depth))
+      {
+        for(m in 1:length(shrinkage))
+        {
+          predictions_gbm=train_gbm(cvtrain, cvtest,depth[l],shrinkage[m])
+          RPS_TEST=rps_calc(predictions_gbm$predictions,3)
+          accuracy[k]=mean(RPS_TEST)
+          k=k+1
+        }
+      }
+    }
+  }
+  depth_best= rep(depth,60)[which.min(accuracy)]
+  shrinkage_best=rep(cbind(rep(shrinkage[1],3),rep(shrinkage[2],3),rep(shrinkage[3],3)),20)[which.min(accuracy)]
+  best_parameters=c(depth_best,shrinkage_best)
+  return(best_parameters)
+}
+
+#DATA PREPROCESSING
+
+#' Data Preprocessing for Matches Data
+#'
+#' Makes preprocessing on raw matches data so that it can be used by other functions.
+#'
+#' @param data A data.table containing raw match data
+#' @export
+#' @examples
+#' matches_data_preprocessing(matches_raw)
+#'
+matches_data_preprocessing <- function(data){
+  
+  temp = copy(data)
+  temp = unique(temp,by="matchId") 
+  setnames(temp,c("home","away","score","date"),c("Home","Away","Score","Match_Date"))
+  temp[,Home:=tolower(Home)]
+  temp[,Away:=tolower(Away)]
+  temp[,Match_DateTime:=as.POSIXct(Match_Date,tz="UTC",origin = as.POSIXct("1970-01-01",tz="UTC"))]
+  temp[,Match_Hour := format(strptime(Match_DateTime,"%Y-%m-%d %H:%M:%OS"),'%H')]
+  temp[,Match_Hour := as.numeric(Match_Hour)]
+  temp[,Match_Date := as.Date(Match_DateTime,format="%Y-%m-%d")]
+  
+  temp[,AWA_FLAG:=0]
+  temp[(Score %like% "AWA."),`:=`(Score=gsub("AWA.","",Score),AWA_FLAG=1)]
+  temp[,POSTP_FLAG:=0]
+  temp[(Score == "POSTP."),`:=`(Score=gsub("POSTP.","",Score),POSTP_FLAG=1)]
+  temp[,CAN_FLAG:=0]
+  temp[(Score == "CAN."),`:=`(Score=gsub("CAN.","",Score),CAN_FLAG=1)]
+  latestDateTimeofKnownScore = max(temp[Score!=""]$Match_DateTime)
+  POSTP_toberemoved = temp[which(temp$POSTP_FLAG==1 & temp$Match_DateTime <= latestDateTimeofKnownScore)]$matchId
+  if(length(POSTP_toberemoved)!=0){
+    cat("Following postponed matches are REMOVED during data_preprocessing:\n")
+    print(data[matchId%in%POSTP_toberemoved,])
+    temp=temp[!matchId%in%POSTP_toberemoved,]
+  }
+  POSTP_tobekept = temp[which(temp$POSTP_FLAG==1 & temp$Match_DateTime > latestDateTimeofKnownScore)]$matchId
+  if(length(POSTP_tobekept)!=0){
+    cat("Following postponed matches are KEPT during data_preprocessing:\n")
+    print(data[matchId%in%POSTP_tobekept,])
+  }
+  
+  temp[,c("Home_Score","Away_Score") := lapply(tstrsplit(Score,":",fixed=T),as.integer)]
+  temp[,`:=`(Match_Result = ifelse(Home_Score == Away_Score, "Tie" , ifelse(Home_Score > Away_Score, 'Home' , 'Away'))
+             ,Total_Score = Home_Score + Away_Score)]
+  temp[,`:=`(Result_Home = ifelse(Match_Result=="Home",1,0)
+             ,Result_Tie = ifelse(Match_Result=="Tie",1,0)
+             ,Result_Away = ifelse(Match_Result=="Away",1,0))]
+  
+  temp[,c('Score','Match_DateTime','AWA_FLAG','POSTP_FLAG','CAN_FLAG'):=NULL]
+  gc()
+  return(temp)
+}
+
+#' Data Preprocessing for Odd Details Data
+#'
+#' Makes preprocessing on raw odd details data so that it can be used by other functions.
+#' only 1x2 bets are considered, if you are interested in other type of odds manipulate ''which_bets''
+#' @param data A data.table containing raw odd details data
+#' @param remove_bookmaker A character vector containing the bookmakers to be removed
+#' @export
+#' @examples
+
+details_data_preprocessing <- function(data,matches,which_bets=c('1x2','ou'),remove_bookmaker=c('BetfairExchange','PaddyPower'),removeOlderThan=30){
+  # data manipulation for historical odd data
+  details = copy(data)
+  #remove duplicate entries
+  details = unique(details)
+  
+  details = details[betType %in% which_bets]
+  details = details[betType=='ou' & totalhandicap==2.5 | betType=='1x2' ]
+  details[,totalhandicap:=NULL]
+  
+  details = merge(details,matches[,list(matchId,Match_Date)],by="matchId",all.x=T)
+  setnames(details,"date","OddChangeDateTime")
+  details[,OddChangeDateTime:=as.POSIXct(OddChangeDateTime,tz="UTC",origin = as.POSIXct("1970-01-01",tz="UTC"))]
+  details = details[difftime(Match_Date,OddChangeDateTime, units = "days") <= removeOlderThan] #remove odds seen earlier than 10 days from the match date
+  details[, odd := as.numeric(odd)]
+  
+  details[,bookmaker:=gsub(" |-","",bookmaker)]
+  if(!is.null(remove_bookmaker)){
+    details = details[!(bookmaker %in% remove_bookmaker)]
+  }
+  
+  gc()
+  return(details)
+}
+
+#ELO PROBS TO CALCULATE ALTERNATE GBM-ELO PREDICTIONS
+#@param matches
+elo_train <- function(matches,testStart,testStartend){
+  copy_train=matches_elo[Match_Date>='2017-07-15' & Match_Date<testStart]
+  
+  copy_train=copy_train[,Home_Prob:=elo.prob(Home_Elo,Away_Elo)]
+  copy_train=copy_train[,Tie_Prob:=0]
+  copy_train=copy_train[,Away_Prob:=1-Home_Prob]
+  copy_train=copy_train[,Tie_Prob:=(1-abs(Home_Prob-Away_Prob))/3]
+  homefrac=c(seq(0.1,0.5,by=0.01))
+  meanrps=c()
+  copy_train1=copy_train
+  for(i in 1:length(homefrac))
+  {
+  copy_train1$Home_Prob=copy_train$Home_Prob-(copy_train$Tie_Prob*homefrac[i])
+  copy_train1$Away_Prob=1-(copy_train1$Home_Prob+copy_train$Tie_Prob)
+  RPS_TEST=rps_calc(copy_train1,19)
+  meanrps[i]=  mean(RPS_TEST)
+  }
+  bestfrac=homefrac[which.min(meanrps)]
+
+  copy_test=matches_elo[Match_Date>=testStart & Match_Date<testStartend]
+  
+  copy_test=copy_test[,Home_Prob:=elo.prob(Home_Elo,Away_Elo)]
+  copy_test=copy_test[,Tie_Prob:=0]
+  copy_test=copy_test[,Away_Prob:=1-Home_Prob]
+  copy_test=copy_test[,Tie_Prob:=(1-abs(Home_Prob-Away_Prob))/3]
+  copy_test=copy_test[,Home_Prob:=Home_Prob-bestfrac*Tie_Prob]
+  copy_test=copy_test[,Away_Prob:=1-(Home_Prob+Tie_Prob)]
+  
+  return(copy_test)
+}
+
+#FEATURE EXTRACTION
+
+extract_features.openclose <- function(matches,odd_details,pMissThreshold=0.01,trainStart,testStart){
+  details = copy(odd_details)
+  matches = copy(matches)
+  
+  details=details[order(OddChangeDateTime)]
+  feature_odd_details=details[,list(Odd_Open=odd[1],Odd_Close=odd[.N]),list(matchId,betType,oddtype,bookmaker)]
+  
+  feature_odd_details = merge(matches[,list(matchId,Match_Date)], feature_odd_details,by="matchId")
+  
+  
+  #HANDLE MISSINGS
+  details_temp = dcast(feature_odd_details, matchId+betType ~ paste0("Odd_Close_",bookmaker)+oddtype, value.var = c("Odd_Close"))
+  details_melt = melt(details_temp, id.vars = c("matchId","betType"), measure.vars = names(details_temp)[names(details_temp) %like% "Odd_Close"], value.name = "odd")
+  details_melt[,c("OpenClose","bookmaker","oddtype"):=tstrsplit(variable,split="_",keep=c(2:4))]
+  details_melt[,variable:=NULL]
+  details_melt = merge(matches[,list(matchId,Match_Date)], details_melt,by="matchId",all=T)
+  
+  bookieMissingness = details_melt[Match_Date >= trainStart,list(.N,percMiss=sum(is.na(odd))/.N),by=list(bookmaker,betType)]
+  bookiesToKeep = unique(bookieMissingness[percMiss <= pMissThreshold]$bookmaker)
+  cat("Number of bookmakers with proportion of missings below",pMissThreshold,"since",as.character(trainStart),":",length(bookiesToKeep),"\n")
+  
+  nonmissingBookmakers_sinceTestStart = unique(details_melt[Match_Date >= testStart, list(.N,NA_SUM=sum(is.na(odd))),by=list(bookmaker,betType)][NA_SUM==0]$bookmaker)
+  bookiesToKeep = intersect(bookiesToKeep,nonmissingBookmakers_sinceTestStart)
+  cat("Number of bookmakers with no missings since testStart", as.character(testStart), ":", length(bookiesToKeep), "\n")
+  
+  details = dcast(feature_odd_details,matchId~oddtype+bookmaker,value.var = c("Odd_Open","Odd_Close"))
+  columnsToKeep = grep(paste(bookiesToKeep,collapse="|"),names(details),value=T)
+  details = details[,c('matchId',columnsToKeep),with=F]
+  #HANDLE MISSINGS END
+  details=details[,-1]
+  
+  details = merge(matches[,-c('Home','Away','Home_Score','Away_Score','Total_Score','Result_Home','Result_Tie','Result_Away','type'),with=F],
+                  details,by="matchId",all=T)
+  
+  
+  return(features = details)
+}
+
+#ADDING HOME_WINS
+home_wins<-function(matches){
+  ct=0
+  home=0
+  for( i in 2:nrow(matches)){
+    temp=matches[i,2]
+    for(j in 1:(i-1)){
+      if (matches[(i-j),2]==temp)
+      {
+        home=home+1
+        if(home>5){
+          break
+        }
+        if(matches[(i-j),10]=="Home"){
+          
+          ct=ct+1
+        }
+        
+      }
+    }
+    
+    matches[i,19]=ct
+    ct=0
+    home=0
+  }
+ return(matches) 
+}
+
+#PERFORMANCE METRICS
+
+#' Performance Metric: Ranked Probability Score
+#'
+#' @param probs vector of 3, predicted probabilities
+#' @param outcomes vector of 3, binary outcomes, should be provided with the same order as probs
+#' @export
+#' @examples
+RPS_single<- function(probs,outcomes){
+  probs = cumsum(probs)
+  outcomes = cumsum(outcomes)
+  RPS = sum((probs-outcomes )^2) / (length(probs)-1)
+  return(RPS)
+}
+
+RPS_matrix<- function(probs,outcomes){
+  probs=as.matrix(probs)
+  outcomes=as.matrix(outcomes)
+  probs=t(apply(t(probs), 2, cumsum))
+  outcomes=t(apply(t(outcomes), 2, cumsum))
+  RPS = apply((probs-outcomes)^2,1,sum) / (ncol(probs)-1)
+  return(RPS)
+}
+
+
+#RANDOM FOREST
+rforest<-function(traindat,cvindices,mtry,noftrees){
+  rforestresults<-NULL
+ 
+    for(j in 1:noffold) {
+      testindices=cvindices[[1]][[j]]
+      cvtrain<-traindat[-testindices,-1]
+      train_class<-traindat[-testindices,1]
+      cvtest<-traindat[testindices,-1]
+      test_class<-traindat[testindices,1]
+      for(m in mtry){
+        for(n in noftrees){
+          r1 = randomForest(Match_Result~ ., data = traindat[-testindices,],ntree=n, nodesize=5, mtry=m)  
+          randomForestPredictions = predict(r1,cvtest,type="prob")
+          
+          order_of_class=attr(randomForestPredictions,'dimnames')[[2]]
+          new_order=c(which(order_of_class=='Home'),which(order_of_class=='Tie'),which(order_of_class=='Away'))
+          predictions=randomForestPredictions[,new_order]
+          
+          outcomes=matrix(0,nrow(predictions),ncol(predictions))
+          for(i in 1:nrow(predictions))
+          {
+            if(test_class[i]=='Home')
+            {
+              outcomes[i,1]=1
+            }
+            if(test_class[i]=='Tie' )
+            {
+              outcomes[i,2]=1
+            }
+            if(test_class[i]=='Away' )
+            {
+              outcomes[i,3]=1
+            }
+          }
+          
+          
+          
+          RPS_TEST=RPS_matrix(predictions,outcomes)
+          
+          error=mean(RPS_TEST)
+          
+          temp=data.table(Fold=j,Method="Rforest",mtry=mtry,Error=error)
+          
+          rforestresults=rbind(rforestresults,temp)
+        
+          
+        }
+      }
+      }
+  
+  
+  return(rforestresults)
+}
+
+#RPS CALCULATION
+rps_calc=function(data,colbegin)
+{
+  outcomes=matrix(0,nrow(data),3)
+  for(i in 1:nrow(data))
+  {
+    if(data$Match_Result[i]=='Home')
+    {
+      outcomes[i,1]=1
+    }
+    if(data$Match_Result[i]=='Tie')
+    {
+      outcomes[i,2]=1
+    }
+    if(data$Match_Result[i]=='Away')
+    {
+      outcomes[i,3]=1
+    }
+  }
+  RPS_TEST=RPS_matrix(data[,colbegin:(colbegin+2)],outcomes)
+  return(RPS_TEST)
+}
+
+#TRAINING GBM
+train_gbm <- function(train_features, test_features,depth,shrinkage)
+  {
+  not_included_feature_indices=c(1:5)
+  set.seed(1)
+  train_features=train_features[,lapply(.SD,na.mean)]
+  glm_features=train_features[complete.cases(train_features)]
+  train_class=glm_features$Match_Result
+  glm_train_data=glm_features[,-not_included_feature_indices,with=F]
+  glm_test_data=test_features[,-not_included_feature_indices,with=F]
+  dim(train_features)
+  noftrees=100
+  learning_rate=shrinkage
+  sampling_fraction=0.5
+  gbmnet_alldata=gbm(as.factor(train_class)~., data=glm_train_data,distribution = "multinomial", n.trees = noftrees,
+                     interaction.depth = depth, n.minobsinnode = 5, shrinkage =learning_rate ,
+                     bag.fraction = sampling_fraction,cv.folds = 10)
+  bestd=gbm.perf(gbmnet_alldata,method = "cv")
+  summary(gbmnet_alldata,n.trees =bestd)
+  predicted_probabilities=predict(gbmnet_alldata,as.data.frame(glm_test_data),type = "response",bestd)
+  order_of_class=attr(predicted_probabilities,'dimnames')[[2]]
+  new_order=c(which(order_of_class=='Home'),which(order_of_class=='Tie'),which(order_of_class=='Away'))
+  final_result=data.table(test_features[,list(matchId,Match_Result)],predicted_probabilities[,new_order,1])
+  return(list(predictions=final_result))
+}
+
+#TRAINING GLMNET (LASSO)
+
+train_glmnet <- function(train_features, test_features){
+  
+  set.seed(1)
+  not_included_feature_indices=c(1:5)
+  alpha=1
+  nlambda=50
+  tune_lambda=TRUE
+  trace=T
+  nFolds=10
+  nofReplications=2
+  
+  # glmnet works with complete data
+  train_features=train_features[,lapply(.SD,na.mean)]
+  
+  glm_features=train_features[complete.cases(train_features)]
+  train_class=glm_features$Match_Result
+  glm_train_data=glm_features[,-not_included_feature_indices,with=F]
+  glm_test_data=test_features[,-not_included_feature_indices,with=F]
+  if(tune_lambda){
+    # to set lambda parameter, cross-validation will be performed and lambda is selected based on RPS performance
+    
+    cvindices=generateCVRuns(train_class,nofReplications,nFolds,stratified=TRUE)
+    
+    # first get lambda sequence for all data
+    glmnet_alldata = glmnet(as.matrix(glm_train_data), as.factor(train_class), family="multinomial", alpha = alpha, nlambda=nlambda)
+    lambda_sequence = glmnet_alldata$lambda
+    
+    cvresult=vector('list',nofReplications*nFolds)
+    iter=1
+    for(i in 1:nofReplications) {
+      thisReplication=cvindices[[i]]
+      for(j in 1:nFolds){
+        if(trace){
+          cat(sprintf('Iteration %d: Fold %d of Replication %d\n',iter,j,i))
+        }
+        testindices=order(thisReplication[[j]])
+        
+        cvtrain=glm_train_data[-testindices]    
+        cvtrainclass=train_class[-testindices]   
+        cvtest=glm_train_data[testindices]
+        cvtestclass=train_class[testindices] 
+        
+        inner_cv_glmnet_fit = glmnet(as.matrix(cvtrain),as.factor(cvtrainclass),family="multinomial", alpha = alpha,lambda=lambda_sequence)
+        valid_pred = predict(inner_cv_glmnet_fit, as.matrix(cvtest), s = lambda_sequence, type = "response")
+        
+        #check order of predictions
+        order_of_class=attr(valid_pred,'dimnames')[[2]]
+        new_order=c(which(order_of_class=='Home'),which(order_of_class=='Tie'),which(order_of_class=='Away'))
+        foldresult=rbindlist(lapply(c(1:length(lambda_sequence)),function(x) { data.table(repl=i,fold=j,lambda=lambda_sequence[x],valid_pred[,new_order,x],result=cvtestclass)}))
+        cvresult[[iter]]=foldresult
+        iter=iter+1
+      }
+    }
+    
+    cvresult=rbindlist(cvresult)
+    
+    # creating actual targets for rps calculations
+    cvresult[,pred_id:=1:.N]
+    outcome_for_rps=data.table::dcast(cvresult,pred_id~result,value.var='pred_id')
+    outcome_for_rps[,pred_id:=NULL]
+    outcome_for_rps[is.na(outcome_for_rps)]=0
+    outcome_for_rps[outcome_for_rps>0]=1
+    setcolorder(outcome_for_rps,c('Home','Tie','Away'))
+    
+    # calculate RPS
+    overall_results=data.table(cvresult[,list(repl,fold,lambda)],RPS=RPS_matrix(cvresult[,list(Home,Tie,Away)],outcome_for_rps))
+    
+    # summarize performance for each lambda
+    overall_results_summary=overall_results[,list(RPS=mean(RPS)),list(repl,fold,lambda)]
+    
+    # find best lambdas as in glmnet based on RPS
+    overall_results_summary=overall_results_summary[,list(meanRPS=mean(RPS),sdRPS=sd(RPS)),list(lambda)]
+    overall_results_summary[,RPS_mean_lb := meanRPS - sdRPS]
+    overall_results_summary[,RPS_mean_ub := meanRPS + sdRPS]
+    
+    cv_lambda_min=overall_results_summary[which.min(meanRPS)]$lambda
+    
+    semin=overall_results_summary[lambda==cv_lambda_min]$RPS_mean_ub
+    cv_lambda.1se=max(overall_results_summary[meanRPS<semin]$lambda)
+    
+    cvResultsSummary = list(lambda.min =cv_lambda_min, lambda.1se = cv_lambda.1se,
+                            meanRPS_min=overall_results_summary[lambda==cv_lambda_min]$meanRPS,
+                            meanRPS_1se=overall_results_summary[lambda==cv_lambda.1se]$meanRPS)
+    
+  }
+  
+  # fit final glmnet model with the lambda with minimum error
+  final_glmnet_fit = glmnet(as.matrix(glm_train_data),as.factor(train_class),family="multinomial", alpha = alpha,lambda=cvResultsSummary$lambda.min)
+  # obtain predictions
+  predicted_probabilities=predict(final_glmnet_fit, as.matrix(glm_test_data), type = "response")
+  
+  #check order of predictions
+  order_of_class=attr(predicted_probabilities,'dimnames')[[2]]
+  new_order=c(which(order_of_class=='Home'),which(order_of_class=='Tie'),which(order_of_class=='Away'))
+  
+  final_result=data.table(test_features[,list(matchId,Match_Result)],predicted_probabilities[,new_order,1])
+  
+  return(list(predictions=final_result,cv_stats=cvResultsSummary))
+}
+
+
+
+
+#PCA and SCALING
+transform_features <- function(train_features, test_features,not_included_feature_indices=c(1:8)){
+  
+  not_included_feature_indices=c(1:8)
+  
+  train_features=train_features[complete.cases(train_features)]
+  test_features=test_features[complete.cases(test_features)]
+  
+  train1=train_features[,-not_included_feature_indices,with=F]
+  test1=test_features[,-not_included_feature_indices,with=F]
+  
+  trainn=cbind(train_features[,c(1:8)],as.data.table(scale(train1)))
+  testt=cbind(test_features[,c(1:8)],as.data.table(scale(test1)))
+  
+  pca = princomp(trainn[,-not_included_feature_indices,with=F])
+
+  str(pca)
+  summary(pca)
+  biplot(pca)
+  
+  z<-pca$scores[,1]
+  z_2<-pca$scores[,2]
+  z_3<-pca$scores[,3]
+  z_4<-pca$scores[,4]
+  z_5<-pca$scores[,5]
+  z_6<-pca$scores[,6]
+  z_7<-pca$scores[,7]
+  z_8<-pca$scores[,8]
+  z_9<-pca$scores[,9]
+  z_10<-pca$scores[,10]
+  z_11<-pca$scores[,11]
+  z_12<-pca$scores[,12]
+  trans_t<-as.data.table(cbind(z,z_2,z_3,z_4,z_5,z_6,z_7,z_8,z_9,z_10,z_11,z_12))
+  testt<-cbind(test_features[,c(1:8)],tail(trans_t, nrow(test_features)))
+  trainn<-cbind(train_features[,c(1:8)],head(trans_t, nrow(train_features)))
+  return (result = list("test" = testt, "train" = trainn))
+}
+
+```
+
+```{r other_funcs,eval=FALSE}
+```
